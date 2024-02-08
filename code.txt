@@ -1,0 +1,127 @@
+#!/bin/bash
+LOG_FILE="p.log"
+
+log_operation() {
+local message="$1"
+local timestamp=$(date +"%Y-%m-%d %T")
+echo "[$timestamp] $message" >> "$LOG_FILE"
+}
+
+add_user(){
+read -p "Saisir nom : " username
+read -p "Saisir mot de passe : " password
+sudo useradd "$username"
+echo "$username:$password" | sudo chpasswd
+echo "Compte ajouté!"
+log_operation "Utilisateur $username créé avec succès."
+}
+
+modify_user(){
+read -p "Saisir ancien nom : " username
+read -p "Saisir nouveau nom : " new_username
+read -p "Saisir nouveau mot de passe : " new_password
+if id "$username" >/dev/null 2>&1; then
+old="$username"
+sudo usermod -l "$new_username" "$username"
+echo "L'ancien nom : $username --> Le nouveau nom : $new_username."
+username="$new_username"
+echo "$new_username:$new_password" | sudo chpasswd
+echo "Mot de passe a été changé !"
+log_operation "Utilisateur $old modifiée à $username avec succès."
+fi
+}
+
+delete_user(){
+    read -p "Nom d'utilisateur : " username   
+    if id "$username" >/dev/null 2>&1; then
+        userdel -r "$username"
+        echo "Le compte utilisateur $username a été supprimé."
+    else
+        echo "Erreur : L'utilisateur $username n'existe pas."
+    fi
+}
+
+show_user(){
+read -p "Saisir le nom de compte pour afficher ses cordonnées : " username
+if id "$username" >/dev/null 2>&1; then
+local uid=$(id -u "$username")
+local gid=$(id -g "$username")
+local groups=$(id -Gn "$username")
+echo "Informations pour l'utilisateur $username :"
+echo "  UID            : $uid"
+echo "  GID            : $gid"
+echo "  Groupes        : $groups"
+fi
+}
+
+
+
+add_user_file(){
+read -p "Saisir le nom du fichier : " file
+while read -r line; do
+username=$(echo $line | cut -d ',' -f 1)
+password=$(echo $line | cut -d ',' -f 2)
+sudo useradd "$username"
+echo "$username:$password" | sudo chpasswd
+echo "Le compte utilisateur $username a été créé avec succès."
+echo "Fichier ajouté !!"
+done < "$file"
+}
+
+
+
+
+delete_user_file(){
+read -p "Saisir le nom du fichier : " file
+while IFS=: read -r username password;do
+if id "$username" >/dev/null 2>&1; then
+sudo userdel -r "$username"
+echo "User $username a été supprimé  ."
+fi
+done < "$file"
+}
+
+usersp(){
+echo "--Gestion des comptes utilisateurs--"
+echo "1- Ajouter un compte"
+echo "2- modifier un compte"
+echo "3- Supprimer un compte"
+echo "4- Afficher les donnés d'un compte"
+echo "5- Ajouter un compte à partir d'un fichier"
+echo "6- supprimer un compte à partir d'un fichier"
+echo "********************************************************"
+echo "Choisissez un chiffre entre 1 et 6 : " 
+read n
+case $n in
+1) add_user;;
+2) modify_user;;
+3) delete_user;;
+4) show_user;;
+5) add_user_file;;
+6) delete_user_file;;
+esac
+}
+surveillance(){
+read -p "Entrez la date de début (année-mois-jour): "  start_date
+read -p "Entrez la date de fin (année-mois-jour) : " end_date
+local modified_files=$(find ~ -type f -newermt "$start_date" ! -newermt "$end_date" 2>/dev/null)
+for file in $modified_files; do
+    local username=$(stat -c %U "$file")
+    echo "Le fichier $file a été modifié par l'utilisateur $username."
+done
+}
+
+main(){
+echo "--Bienvenue dans notre projet Semestriel--"
+echo "1- Gestion des comptes utilisateurs"
+echo "2- Surveillance de l'utilisation du serveur"
+echo "********************************************************"
+echo "Choisissez un chiffre entre 1 ou 2 : " 
+
+read n
+case $n in
+1) usersp;;
+2) surveillance;;
+esac
+}
+main
